@@ -5,90 +5,68 @@ from PIL import Image
 import vtracer
 import os
 
-# Configuration de la page
-st.set_page_config(page_title="Photo to Metal Art", layout="wide")
+st.set_page_config(page_title="Vector Art Studio", layout="wide")
 
-st.markdown("""
-    <style>
-    .main { background-color: #f0f2f6; }
-    .stButton>button { width: 100%; border-radius: 5px; height: 3em; background-color: #2e7d32; color: white; }
-    </style>
-    """, unsafe_allow_html=True)
-
-st.title("🎨 Convertisseur d'Art Vectoriel")
-st.write("Transformez n'importe quelle photo en design prêt pour la découpe ou le print.")
+st.title("🚗 Studio de Vectorisation Pro")
 
 # --- SIDEBAR : PARAMÈTRES ---
-st.sidebar.header("⚙️ Réglages du Design")
-
-uploaded_file = st.sidebar.file_uploader("Étape 1 : Charger une image", type=["jpg", "jpeg", "png"])
-
-st.sidebar.markdown("---")
-st.sidebar.subheader("Étape 2 : Ajuster le rendu")
-
-# Paramètres de l'image
-threshold_val = st.sidebar.slider("Contraste (Seuil)", 0, 255, 128, help="Ajuste la quantité de noir.")
-blur_res = st.sidebar.slider("Lissage des bords", 1, 21, 5, step=2)
-invert = st.sidebar.checkbox("Inverser les couleurs", value=False)
+st.sidebar.header("⚙️ Configuration")
+uploaded_file = st.sidebar.file_uploader("1. Charger la photo", type=["jpg", "jpeg", "png"])
 
 st.sidebar.markdown("---")
-st.sidebar.subheader("Étape 3 : Cadre de maintien")
-add_border = st.sidebar.toggle("Ajouter un cadre noir", value=True)
-border_thickness = st.sidebar.slider("Épaisseur du cadre", 5, 100, 20)
+st.sidebar.subheader("2. Réglages du tracé")
+threshold_val = st.sidebar.slider("Seuil (Noir/Blanc)", 0, 255, 128)
+blur_res = st.sidebar.slider("Lissage des courbes", 1, 21, 5, step=2)
+
+# NOUVELLE OPTION : ÉPAISSEUR DES TRAITS
+line_thickness = st.sidebar.slider("Épaisseur des traits (Détails)", -10, 10, 0, help="Négatif pour affiner, positif pour épaissir.")
+
+st.sidebar.markdown("---")
+st.sidebar.subheader("3. Cadre de maintien")
+add_border = st.sidebar.toggle("Ajouter un cadre", value=True)
+border_thickness = st.sidebar.slider("Épaisseur du cadre", 5, 150, 30)
 
 if uploaded_file is not None:
-    # Traitement de l'image
     file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=np.uint8)
     img = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
-    img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     
-    col1, col2 = st.columns(2)
-
-    with col1:
-        st.subheader("🖼️ Original")
-        st.image(img_rgb, use_container_width=True)
-
     # --- PIPELINE DE TRAITEMENT ---
-    # 1. Gris et Flou
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     blurred = cv2.GaussianBlur(gray, (blur_res, blur_res), 0)
-    
-    # 2. Threshold (Noir et Blanc)
     _, thresh = cv2.threshold(blurred, threshold_val, 255, cv2.THRESH_BINARY)
-    
-    if invert:
-        thresh = cv2.bitwise_not(thresh)
 
-    # 3. Ajout du Cadre (Border)
+    # APPLICATION DE L'ÉPAISSEUR (MORPHOLOGIE)
+    if line_thickness != 0:
+        kernel = np.ones((abs(line_thickness), abs(line_thickness)), np.uint8)
+        if line_thickness > 0:
+            # Éroder le blanc = épaissir le noir
+            thresh = cv2.erode(thresh, kernel, iterations=1)
+        else:
+            # Dilater le blanc = affiner le noir
+            thresh = cv2.dilate(thresh, kernel, iterations=1)
+
+    # AJOUT DU CADRE
     if add_border:
         h, w = thresh.shape
-        # On dessine un rectangle noir sur les bords
-        t = border_thickness
-        cv2.rectangle(thresh, (0, 0), (w, h), (0, 0, 0), t)
+        cv2.rectangle(thresh, (0, 0), (w, h), (0, 0, 0), border_thickness)
 
+    # PRÉPARATION DE LA PRÉVIEW (Ajout d'une bordure blanche pour la visibilité)
+    # On ajoute 10 pixels de blanc tout autour pour voir le cadre noir si le fond du site est noir
+    preview_img = cv2.copyMakeBorder(thresh, 20, 20, 20, 20, cv2.BORDER_CONSTANT, value=[255, 255, 255])
+
+    col1, col2 = st.columns(2)
+    with col1:
+        st.subheader("Original")
+        st.image(cv2.cvtColor(img, cv2.COLOR_BGR2RGB), use_container_width=True)
     with col2:
-        st.subheader("✨ Rendu Automatique")
-        st.image(thresh, use_container_width=True, channels="GRAY")
+        st.subheader("Rendu (Aperçu sur fond blanc)")
+        st.image(preview_img, use_container_width=True)
 
-    # --- EXPORT VECTORIEL ---
-    st.markdown("---")
-    if st.button("🚀 GÉNÉRER LE FICHIER VECTORIEL (SVG)"):
-        with st.spinner("Vectorisation en cours..."):
-            # Sauvegarde temporaire pour vtracer
-            temp_png = "temp_render.png"
-            cv2.imwrite(temp_png, thresh)
-            output_svg = "mon_design.svg"
-            
-            # vtracer convertit le pixel en courbe
-            vtracer.convert_image_to_svg(temp_png, output_svg)
-
-            with open(output_svg, "rb") as f:
-                st.download_button(
-                    label="📥 TÉLÉCHARGER LE SVG",
-                    data=f,
-                    file_name="art_vectoriel.svg",
-                    mime="image/svg+xml"
-                )
-            st.success("Vectorisation terminée avec succès !")
-else:
-    st.info("Veuillez charger une photo dans la barre latérale pour commencer.")
+    # --- EXPORT ---
+    if st.button("🚀 GÉNÉRER LE SVG"):
+        temp_png = "render.png"
+        cv2.imwrite(temp_png, thresh)
+        vtracer.convert_image_to_svg(temp_png, "output.svg")
+        
+        with open("output.svg", "rb") as f:
+            st.download_button("📥 Télécharger le Vectoriel", f, "mon_design.svg", "image/svg+xml")
