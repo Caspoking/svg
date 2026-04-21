@@ -65,32 +65,36 @@ if uploaded_file is not None:
             input_path = os.path.join(tmpdirname, "input.png")
             output_path = os.path.join(tmpdirname, "output.svg")
             
+            # Sauvegarde de l'image traitée en PNG
             cv2.imwrite(input_path, thresh)
             
             try:
-                # LA CORRECTION EST ICI : convert_to_svg au lieu de convert_image_to_svg
-                vtracer.convert_to_svg(input_path, output_path)
-                
-                with open(output_path, "rb") as f:
-                    svg_data = f.read()
-                
-                st.sidebar.success("✅ SVG Prêt !")
-                st.sidebar.download_button(
-                    label="📥 TÉLÉCHARGER LE SVG",
-                    data=svg_data,
-                    file_name="mon_design_vector.svg",
-                    mime="image/svg+xml"
+                # LA MÉTHODE LA PLUS STABLE POUR VTRACER PYTHON
+                vtracer.vtrace(
+                    input_path,
+                    output_path,
+                    mode="spline",      # Pour avoir de belles courbes
+                    limit_ratio=10,     # Niveau de détail
+                    filter_speckle=4,   # Supprime les petits points parasites
+                    color_precision=6   # Précision des couleurs (ici N&B)
                 )
-            except Exception as e:
-                # Si même cela échoue, on tente une dernière méthode de secours
-                st.sidebar.warning("Tentative avec méthode secondaire...")
-                try:
-                    vtracer.convert_image_to_svg(input_path, output_path)
+                
+                if os.path.exists(output_path):
                     with open(output_path, "rb") as f:
                         svg_data = f.read()
+                    
                     st.sidebar.success("✅ SVG Prêt !")
-                    st.sidebar.download_button(label="📥 TÉLÉCHARGER LE SVG", data=svg_data, file_name="mon_design.svg")
-                except:
-                    st.error(f"Erreur fatale : {e}")
+                    st.sidebar.download_button(
+                        label="📥 TÉLÉCHARGER LE SVG",
+                        data=svg_data,
+                        file_name="mon_design_vector.svg",
+                        mime="image/svg+xml"
+                    )
+                else:
+                    st.error("Le fichier SVG n'a pas pu être généré.")
+                    
+            except Exception as e:
+                st.error(f"Erreur technique : {e}")
+                st.info("Astuce : Si l'erreur persiste, vérifiez que votre fichier requirements.txt contient bien 'vtracer'.")
 else:
     st.info("👋 Chargez une photo pour commencer.")
