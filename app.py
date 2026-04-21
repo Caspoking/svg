@@ -2,13 +2,10 @@ import streamlit as st
 import cv2
 import numpy as np
 from PIL import Image
-import vtracer
-import tempfile
-import os
 
 st.set_page_config(page_title="Vector Art Studio", layout="wide")
 
-st.title("🚗 Studio de Vectorisation Pro")
+st.title("🚗 Studio de Vectorisation (Version Stable)")
 
 # --- SIDEBAR ---
 st.sidebar.header("⚙️ Configuration")
@@ -58,43 +55,31 @@ if uploaded_file is not None:
         st.subheader("Rendu Final")
         st.image(thresh, use_container_width=True)
 
-    # --- EXPORT ---
+    # --- EXPORT SVG (MÉTHODE MANUELLE STABLE) ---
     st.sidebar.markdown("---")
     if st.sidebar.button("🚀 GÉNÉRER LE SVG"):
-        with tempfile.TemporaryDirectory() as tmpdirname:
-            input_path = os.path.join(tmpdirname, "input.png")
-            output_path = os.path.join(tmpdirname, "output.svg")
-            
-            # Sauvegarde de l'image traitée en PNG
-            cv2.imwrite(input_path, thresh)
-            
-            try:
-                # LA MÉTHODE LA PLUS STABLE POUR VTRACER PYTHON
-                vtracer.vtrace(
-                    input_path,
-                    output_path,
-                    mode="spline",      # Pour avoir de belles courbes
-                    limit_ratio=10,     # Niveau de détail
-                    filter_speckle=4,   # Supprime les petits points parasites
-                    color_precision=6   # Précision des couleurs (ici N&B)
-                )
-                
-                if os.path.exists(output_path):
-                    with open(output_path, "rb") as f:
-                        svg_data = f.read()
-                    
-                    st.sidebar.success("✅ SVG Prêt !")
-                    st.sidebar.download_button(
-                        label="📥 TÉLÉCHARGER LE SVG",
-                        data=svg_data,
-                        file_name="mon_design_vector.svg",
-                        mime="image/svg+xml"
-                    )
-                else:
-                    st.error("Le fichier SVG n'a pas pu être généré.")
-                    
-            except Exception as e:
-                st.error(f"Erreur technique : {e}")
-                st.info("Astuce : Si l'erreur persiste, vérifiez que votre fichier requirements.txt contient bien 'vtracer'.")
+        # On trouve les contours de l'image
+        # On inverse car findContours cherche les objets blancs
+        contours, _ = cv2.findContours(cv2.bitwise_not(thresh), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+        
+        h, w = thresh.shape
+        svg_header = f'<svg width="{w}" height="{h}" viewBox="0 0 {w} {h}" xmlns="http://www.w3.org/2000/svg">'
+        svg_footer = "</svg>"
+        svg_paths = []
+
+        for cnt in contours:
+            if len(cnt) > 2:
+                path_data = "M " + " L ".join([f"{p[0][0]},{p[0][1]}" for p in cnt]) + " Z"
+                svg_paths.append(f'<path d="{path_data}" fill="black" stroke="none" />')
+
+        svg_full = svg_header + "".join(svg_paths) + svg_footer
+        
+        st.sidebar.success("✅ SVG Généré avec succès !")
+        st.sidebar.download_button(
+            label="📥 TÉLÉCHARGER LE SVG",
+            data=svg_full,
+            file_name="mon_art_metal.svg",
+            mime="image/svg+xml"
+        )
 else:
-    st.info("👋 Chargez une photo pour commencer.")
+    st.info("👋 Chargez une photo. Cette version n'utilise plus 'vtracer' pour éviter les erreurs.")
