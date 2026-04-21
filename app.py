@@ -55,31 +55,35 @@ if uploaded_file is not None:
         st.subheader("Rendu Final")
         st.image(thresh, use_container_width=True)
 
-    # --- EXPORT SVG (MÉTHODE MANUELLE STABLE) ---
+# --- EXPORT SVG (VERSION AMÉLIORÉE) ---
     st.sidebar.markdown("---")
     if st.sidebar.button("🚀 GÉNÉRER LE SVG"):
         # On trouve les contours de l'image
-        # On inverse car findContours cherche les objets blancs
-        contours, _ = cv2.findContours(cv2.bitwise_not(thresh), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+        # RETR_TREE est important pour garder la hiérarchie (trous dans les formes)
+        contours, hierarchy = cv2.findContours(cv2.bitwise_not(thresh), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
         
         h, w = thresh.shape
+        # AJOUT de fill-rule="evenodd" pour gérer les trous
         svg_header = f'<svg width="{w}" height="{h}" viewBox="0 0 {w} {h}" xmlns="http://www.w3.org/2000/svg">'
         svg_footer = "</svg>"
         svg_paths = []
 
         for cnt in contours:
             if len(cnt) > 2:
+                # Création du tracé
                 path_data = "M " + " L ".join([f"{p[0][0]},{p[0][1]}" for p in cnt]) + " Z"
-                svg_paths.append(f'<path d="{path_data}" fill="black" stroke="none" />')
+                # On applique fill-rule="evenodd" ici
+                svg_paths.append(f'<path d="{path_data}" fill="black" fill-rule="evenodd" stroke="none" />')
 
         svg_full = svg_header + "".join(svg_paths) + svg_footer
         
-        st.sidebar.success("✅ SVG Généré avec succès !")
+        st.sidebar.success("✅ SVG optimisé généré !")
         st.sidebar.download_button(
             label="📥 TÉLÉCHARGER LE SVG",
             data=svg_full,
             file_name="mon_art_metal.svg",
             mime="image/svg+xml"
+        )
         )
 else:
     st.info("👋 Chargez une photo. Cette version n'utilise plus 'vtracer' pour éviter les erreurs.")
