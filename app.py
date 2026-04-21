@@ -73,11 +73,34 @@ if uploaded_file is not None:
         st.image(thresh, caption="Aperçu (Le blanc sera vide, le noir sera découpé)", use_container_width=True)
 
     # --- BOUTON EXPORT ---
-    if st.button("🚀 GÉNÉRER LE SVG"):
-        cv2.imwrite("render.png", thresh)
-        vtracer.convert_image_to_svg("render.png", "output.svg")
-        with open("output.svg", "rb") as f:
-            st.download_button("📥 Télécharger le fichier Vectoriel", f, "mon_design.svg", "image/svg+xml")
-
+    st.sidebar.markdown("---")
+    if st.sidebar.button("🚀 GÉNÉRER LE SVG"):
+        try:
+            # On encode l'image en mémoire plutôt que de l'écrire sur le disque
+            _, buffer = cv2.imencode(".png", thresh)
+            img_bytes = buffer.tobytes()
+            
+            # Utilisation de vtracer pour générer le code SVG directement
+            # On passe les bytes de l'image à vtracer
+            svg_str = vtracer.convert_raw_image_to_svg(
+                img_bytes,
+                size=(thresh.shape[1], thresh.shape[0]),
+                fmt="png"
+            )
+            
+            st.sidebar.success("✅ Vectorisation réussie !")
+            st.sidebar.download_button(
+                label="📥 Télécharger le fichier SVG",
+                data=svg_str,
+                file_name="mon_design_vectoriel.svg",
+                mime="image/svg+xml"
+            )
+            
+            # Affichage du code SVG pour vérification (optionnel)
+            with st.expander("Voir le code source du SVG"):
+                st.code(svg_str, language="xml")
+                
+        except Exception as e:
+            st.error(f"Erreur lors de la génération : {e}")
 else:
     st.info("💡 Chargez une image pour commencer. Si le rendu est tout noir, baissez le 'Seuil' ou essayez d'activer 'Inverser les couleurs'.")
