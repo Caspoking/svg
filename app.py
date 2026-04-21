@@ -15,7 +15,6 @@ st.sidebar.header("⚙️ Configuration")
 uploaded_file = st.sidebar.file_uploader("1. Charger la photo", type=["jpg", "jpeg", "png"])
 
 if uploaded_file is not None:
-    # Lecture de l'image
     file_bytes = np.asarray(bytearray(uploaded_file.read()), dtype=np.uint8)
     img = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
     
@@ -57,36 +56,41 @@ if uploaded_file is not None:
         st.image(cv2.cvtColor(img, cv2.COLOR_BGR2RGB), use_container_width=True)
     with col2:
         st.subheader("Rendu Final")
-        # On ajoute une petite bordure grise pour voir le cadre blanc/noir sur l'interface
         st.image(thresh, use_container_width=True)
 
-    # --- EXPORT (LA PARTIE SENSIBLE) ---
+    # --- EXPORT ---
     st.sidebar.markdown("---")
-    if st.sidebar.button("🚀 PRÉPARER LE SVG"):
-        # Utilisation d'un dossier temporaire sécurisé
+    if st.sidebar.button("🚀 GÉNÉRER LE SVG"):
         with tempfile.TemporaryDirectory() as tmpdirname:
             input_path = os.path.join(tmpdirname, "input.png")
             output_path = os.path.join(tmpdirname, "output.svg")
             
-            # On sauve l'image traitée
             cv2.imwrite(input_path, thresh)
             
-            # On vectorise
             try:
-                vtracer.convert_image_to_svg(input_path, output_path)
+                # LA CORRECTION EST ICI : convert_to_svg au lieu de convert_image_to_svg
+                vtracer.convert_to_svg(input_path, output_path)
                 
-                # On lit le résultat pour le proposer au téléchargement
                 with open(output_path, "rb") as f:
                     svg_data = f.read()
                 
                 st.sidebar.success("✅ SVG Prêt !")
                 st.sidebar.download_button(
-                    label="📥 TÉLÉCHARGER MAINTENANT",
+                    label="📥 TÉLÉCHARGER LE SVG",
                     data=svg_data,
                     file_name="mon_design_vector.svg",
                     mime="image/svg+xml"
                 )
             except Exception as e:
-                st.error(f"Erreur de vectorisation : {e}")
+                # Si même cela échoue, on tente une dernière méthode de secours
+                st.sidebar.warning("Tentative avec méthode secondaire...")
+                try:
+                    vtracer.convert_image_to_svg(input_path, output_path)
+                    with open(output_path, "rb") as f:
+                        svg_data = f.read()
+                    st.sidebar.success("✅ SVG Prêt !")
+                    st.sidebar.download_button(label="📥 TÉLÉCHARGER LE SVG", data=svg_data, file_name="mon_design.svg")
+                except:
+                    st.error(f"Erreur fatale : {e}")
 else:
-    st.info("👋 Bienvenue ! Commencez par charger une photo dans le menu à gauche.")
+    st.info("👋 Chargez une photo pour commencer.")
